@@ -1,5 +1,6 @@
 import collections
 import copyreg
+from datetime import timedelta
 from enum import Enum
 import io
 import pickle

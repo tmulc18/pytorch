@@ -102,7 +102,10 @@ def _process_group_init_backend_handler(
         )
 
     dist.init_process_group(
-        backend="gloo", store=store, rank=rank, world_size=world_size
+        backend="gloo",
+        store=store,
+        rank=rank,
+        world_size=world_size,
     )
 
     try:

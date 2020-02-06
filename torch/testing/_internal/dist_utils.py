@@ -1,9 +1,11 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import time
+from datetime import timedelta
 from functools import partial, wraps
 
 import torch.distributed as dist
+from torch.distributed.distributed_c10d import _get_default_group
 import torch.distributed.rpc as rpc
 from torch.distributed.rpc import _rref_context_get_debug_info
 
@@ -87,17 +89,25 @@ TEST_CONFIG.build_rpc_backend_options = lambda test_object: rpc.backend_registry
 def noop():
     pass
 
-def wait_until_node_failure(rank):
+def wait_until_node_failure(rank, sleep_duration=0.5, backoff=1):
     '''
     Loops until an RPC to the given rank fails. This is used to
     indicate that the node has failed in unit tests.
+
+    Args:
+        rank - Rank for which we are waiting to fail
+        sleep_duration - Amount to sleep in between checking if rank has failed
+        backoff - multiplier for sleep_duration
     '''
     while True:
         try:
+            time.sleep(sleep_duration)
             rpc.rpc_sync("worker{}".format(rank), noop, args=())
-            time.sleep(0.5)
-        except Exception:
+        except Exception as e:
             break
+        else:
+            # bump sleep_duration
+            sleep_duration = sleep_duration * backoff
 
 # Shutdown sequence is not well defined, so we may see any of the following errors
 # When running tests that simulate errors via a shutdown on the remote end.
@@ -127,6 +137,10 @@ def wait_until_pending_users_flushed():
         time.sleep(0.1)
         num_pending_users = int(_rref_context_get_debug_info()["num_pending_users"])
     return
+
+def set_pg_timeout_for_testing(timeout):
+    """Sets the pg timeout for testing"""
+    _get_default_group().set_timeout(timeout)
 
 def initialize_pg(init_method, rank, world_size):
     # This is for tests using `dist.barrier`.
